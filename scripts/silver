@@ -1,1 +1,62 @@
+TRUNCATE TABLE DATAWAREHOUSE.SILVER.crm_sales_details;
 
+INSERT INTO DATAWAREHOUSE.SILVER.crm_sales_details  ( sls_ord_num
+      ,sls_prd_key
+      ,sls_cust_id
+      ,sls_order_dt
+      ,sls_ship_dt
+      ,sls_due_dt
+      ,sls_sales
+      ,sls_quantity
+      ,sls_price)
+SELECT sls_ord_num
+      ,sls_prd_key
+      ,sls_cust_id
+	  ,CASE WHEN sls_order_dt <=0 OR LEN(sls_order_dt)!=8 THEN NULL
+	        ELSE CAST(CAST(sls_order_dt AS VARCHAR) AS DATE) END sls_order_dt
+	  ,CASE WHEN sls_ship_dt <=0 OR LEN(sls_ship_dt)!=8 THEN NULL
+	        ELSE CAST(CAST(sls_ship_dt AS VARCHAR) AS DATE) END sls_ship_dt
+	  ,CASE WHEN sls_due_dt <=0 OR LEN(sls_due_dt)!=8 THEN NULL
+	        ELSE CAST(CAST(sls_due_dt AS VARCHAR) AS DATE) END sls_due_dt
+      ,case when sls_sales is null or sls_sales <=0 or sls_sales != abs(sls_price) * sls_quantity
+	        then abs(sls_price) * sls_quantity 
+			else sls_sales end as sls_sales
+      ,sls_quantity
+      ,CASE WHEN sls_price IS NULL OR sls_price <=0 THEN sls_sales/ sls_quantity
+			 ELSE sls_price END AS sls_price
+FROM DATAWAREHOUSE.BRONZE.crm_sales_details;
+
+TRUNCATE TABLE DATAWAREHOUSE.SILVER.erp_cust_info;
+
+INSERT INTO SILVER.erp_cust_info (CID,BDATE,GEN)
+SELECT 
+REPLACE(CID,'NAS','') AS CID, 
+CASE WHEN BDATE > GETDATE() THEN NULL
+     ELSE BDATE END AS BDATE,
+CASE WHEN UPPER(TRIM(GEN)) IN ('F','FEMALE') THEN 'Female' 
+     WHEN UPPER(TRIM(GEN)) IN ('M','MALE') THEN 'Male'
+	 ELSE 'Unknown' END GEN
+FROM BRONZE.erp_cust_info;
+
+TRUNCATE TABLE DATAWAREHOUSE.SILVER.erp_location_info;
+
+INSERT INTO SILVER.erp_location_info (CID,CNTRY)
+SELECT replace(CID,'-','') CID,
+CASE WHEN UPPER(TRIM(CNTRY)) IN ('US','USA','UNITED STATES') THEN 'United States'
+     WHEN UPPER(TRIM(CNTRY)) IN ('DE','Germany') THEN 'Germany'
+	 WHEN UPPER(TRIM(CNTRY)) ='' OR UPPER(TRIM(CNTRY)) IS NULL THEN 'Unknown'
+	 ELSE CNTRY
+END AS CNTRY
+FROM BRONZE.erp_location_info;
+
+TRUNCATE TABLE DATAWAREHOUSE.SILVER.erp_px_cat_info;
+
+INSERT INTO DATAWAREHOUSE.SILVER.erp_px_cat_info (ID
+      ,CAT
+      ,SUBCAT
+      ,MAINTENANCE)
+SELECT ID
+      ,CAT
+      ,SUBCAT
+      ,MAINTENANCE
+ FROM DATAWAREHOUSE.BRONZE.erp_px_cat_info;
